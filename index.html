@@ -1,1 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GAF Shingle Master — All Series (State-by-State)</title>
+<style>
+  :root{
+    --bg:#0b0c10; --card:#111217; --muted:#9aa0a6; --text:#e8eaed; --accent:#ff7a00;
+    --border:#23252d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+  header{padding:24px 20px 8px;max-width:1200px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:13px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+  .controls input,.controls select{
+    background:#0e0f14;color:var(--text);border:1px solid var(--border);
+    padding:10px 12px;border-radius:10px;outline:none;min-width:170px
+  }
+  .wrap{max-width:1200px;margin:0 auto;padding:0 20px 40px}
+  .grid.head,.row{
+    display:grid;grid-template-columns: 140px 110px 170px 170px 170px 90px;
+    align-items:center;gap:10px
+  }
+  .grid.head{
+    color:#cbd0d7;font-weight:600;border-bottom:1px solid var(--border);
+    padding:10px 0;margin-top:6px
+  }
+  .row{border-bottom:1px dashed var(--border);padding:10px 0}
+  .imgbox{
+    width:130px;height:90px;border-radius:10px;border:1px solid var(--border);
+    background:#0e0f14;display:flex;align-items:center;justify-content:center;overflow:hidden
+  }
+  .imgbox img{width:100%;height:100%;object-fit:cover;display:block}
+  .pill{font-size:12px;color:#cbd0d7}
+  .muted{color:var(--muted)}
+  .foot{margin-top:18px;color:var(--muted);font-size:12px}
+  .badge{display:inline-block;background:#14161d;border:1px solid var(--border);padding:2px 8px;border-radius:999px;font-size:12px}
+  .placeholder{
+    width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#cbd0d7;
+    background:repeating-linear-gradient(45deg,#20232b,#20232b 10px,#171922 10px,#171922 20px);
+    text-align:center;padding:12px
+  }
+  @media (max-width: 860px){
+    .grid.head,.row{grid-template-columns: 120px 1fr 1fr 1fr 1fr 80px}
+    .controls input,.controls select{min-width:140px}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>GAF Shingle Master — All Series</h1>
+    <div class="sub">One row per <span class="badge">Brand</span> · <span class="badge">Series</span> · <span class="badge">Warranty</span> · <span class="badge">Grade</span> · <span class="badge">Color</span> · <span class="badge">State</span>. Region availability is expanded into per-state rows.</div>
+    <div class="controls">
+      <input id="q" type="search" placeholder="Search brand / series / color / state…" />
+      <select id="brand"><option value="">All Brands</option></select>
+      <select id="series"><option value="">All Series</option></select>
+      <select id="state"><option value="">All States</option></select>
+      <select id="color"><option value="">All Colors</option></select>
+      <select id="warranty"><option value="">All Warranties</option></select>
+      <select id="grade"><option value="">All Grades</option></select>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid head">
+      <div>Swatch</div>
+      <div>Brand</div>
+      <div>Series</div>
+      <div>Warranty</div>
+      <div>Color</div>
+      <div>State</div>
+    </div>
+    <div id="rows"></div>
+    <div class="foot">
+      Tip: add real swatch images in your repo at <code>/swatches/&lt;Series&gt;/&lt;Color&gt;.png</code> (or .jpg).  
+      Example: <code>swatches/Timberline HDZ/Barkwood.png</code>. Missing images show a labeled placeholder.
+    </div>
+  </div>
+
+<script>
+/* ------------------------------
+   1) Region → States mapping
+   Edit if you use a different region layout. Rows are expanded per state.
+-------------------------------- */
+const REGION_STATES = {
+  1: ["ME","NH","VT","MA","RI","CT","NY","NJ","PA","DE","MD","DC","VA","WV"],
+  2: ["MI","OH","IN","IL","WI"],
+  3: ["TX","LA","AR","MS","OK","NM"],
+  4: ["MN","IA","ND","SD","NE","KS","MO"],
+  5: ["CO","UT","WY","MT","ID","NV","AZ","CA","OR","WA"],
+  6: ["FL","GA","AL","SC"],
+  7: ["TN","KY","NC"]
+};
+
+/* ------------------------------
+   2) Series info (Warranty & Grade)
+   Add/adjust series as needed.
+-------------------------------- */
+const SERIES_INFO = {
+  "Timberline HDZ":  { warranty: "Lifetime Limited", grade: "Premium" },
+  "Timberline UHDZ": { warranty: "Lifetime Limited", grade: "Premium" },
+  "Timberline NS":   { warranty: "Lifetime Limited", grade: "Standard" },
+  "Timberline AS II":{ warranty: "Lifetime Limited (IR)", grade: "Premium" },
+  "Royal Sovereign": { warranty: "25-Year Limited", grade: "Economy" },
+  // Add more GAF lines here if present in your brochure…
+};
+
+/* ------------------------------
+   3) Color availability by series
+   HDZ availability comes from region dots; UHDZ assumed nationwide across mapped states.
+   Add other series with either region arrays or "All".
+-------------------------------- */
+const HDZ_AVAIL_BY_COLOR = {
+  "Barkwood":[1,2,3,4,5,6,7],
+  "Charcoal":[1,2,3,4,5,6,7],
+  "Hickory":[1,2,3,4,5,6,7],
+  "Hunter Green":[1,2,3,4,5,6,7],
+  "Mission Brown":[1,2,3,4,5,6,7],
+  "Pewter Gray":[1,2,3,4,5,6,7],
+  "Shakewood":[1,2,3,4,5,6,7],
+  "Slate":[1,2,3,4,5,6,7],
+  "Weathered Wood":[1,2,3,4,5,6,7],
+  // Harvest Blend
+  "Appalachian Sky":[2,4,6],
+  "Nantucket Morning":[2,4,6],
+  "Golden Harvest":[2,4,6],
+  "Cedar Falls":[2,4,6],
+  // Regional
+  "Biscayne Blue":[6],
+  "Birchwood":[1,2],
+  "Copper Canyon":[1,2],
+  "Driftwood":[1,2,3,4,5,6,7],
+  "Fox Hollow Gray":[1,2,3,4,5,6,7],
+  "Golden Amber":[1,2],
+  "Oyster Gray":[1,2,3,4,5,6,7],
+  "Patriot Red":[1,2],
+  "Sunset Brick":[1,2],
+  "Williamsburg Slate":[1,2,3,4,5,6,7]
+};
+
+const UHDZ_COLORS = ["Barkwood","Charcoal","Pewter Gray","Shakewood","Slate","Weathered Wood"];
+
+// EXAMPLES for adding more series (update with real colors/availability as needed):
+const NS_COLORS = ["Barkwood","Charcoal","Driftwood","Pewter Gray","Shakewood","Slate","Weathered Wood"]; // sample set
+const ASII_COLORS = ["Barkwood","Charcoal","Driftwood","Pewter Gray","Shakewood","Slate","Weathered Wood"]; // sample set
+const RS_COLORS = ["Charcoal","Weathered Wood","Slate"]; // 3-tab sample set
+
+/* ------------------------------
+   4) Utility to expand regions → states
+-------------------------------- */
+const ALL_STATES = [...new Set(Object.values(REGION_STATES).flat())].sort();
+function statesForRegions(regionList){
+  if (regionList === "All") return ALL_STATES;
+  const states = [];
+  (regionList||[]).forEach(r => states.push(...(REGION_STATES[r]||[])));
+  return [...new Set(states)].sort();
+}
+
+/* ------------------------------
+   5) Build master rows
+-------------------------------- */
+const rows = [];
+const BRAND = "GAF";
+
+// Timberline HDZ
+Object.entries(HDZ_AVAIL_BY_COLOR).forEach(([color, regions])=>{
+  const sInfo = SERIES_INFO["Timberline HDZ"];
+  statesForRegions(regions).forEach(st=>{
+    rows.push({
+      Brand: BRAND, Series: "Timberline HDZ",
+      Warranty: sInfo.warranty, Grade: sInfo.grade,
+      Color: color, State: st
+    });
+  });
+});
+
+// Timberline UHDZ (nationwide across our mapped states)
+UHDZ_COLORS.forEach(color=>{
+  const sInfo = SERIES_INFO["Timberline UHDZ"];
+  ALL_STATES.forEach(st=>{
+    rows.push({
+      Brand: BRAND, Series: "Timberline UHDZ",
+      Warranty: sInfo.warranty, Grade: sInfo.grade,
+      Color: color, State: st
+    });
+  });
+});
+
+// (Optional) Add other lines with your true availability rules below.
+// For now, we mark NS, AS II, RS as nationwide examples so you can see end-to-end.
+// Replace "All" with a region array if any are region-limited.
+function addSeriesNationwide(seriesName, colors){
+  const sInfo = SERIES_INFO[seriesName];
+  if (!sInfo) return;
+  colors.forEach(color=>{
+    ALL_STATES.forEach(st=>{
+      rows.push({
+        Brand: BRAND, Series: seriesName,
+        Warranty: sInfo.warranty, Grade: sInfo.grade,
+        Color: color, State: st
+      });
+    });
+  });
+}
+addSeriesNationwide("Timberline NS", NS_COLORS);
+addSeriesNationwide("Timberline AS II", ASII_COLORS);
+addSeriesNationwide("Royal Sovereign", RS_COLORS);
+
+/* ------------------------------
+   6) UI: populate filters + render
+-------------------------------- */
+const $q = document.getElementById('q');
+const $brand = document.getElementById('brand');
+const $series = document.getElementById('series');
+const $state = document.getElementById('state');
+const $color = document.getElementById('color');
+const $warranty = document.getElementById('warranty');
+const $grade = document.getElementById('grade');
+
+function fillOptions(){
+  const brands = [...new Set(rows.map(r=>r.Brand))].sort();
+  const series = [...new Set(rows.map(r=>r.Series))].sort();
+  const states = [...new Set(rows.map(r=>r.State))].sort();
+  const colors = [...new Set(rows.map(r=>r.Color))].sort();
+  const warranties = [...new Set(rows.map(r=>r.Warranty))].sort();
+  const grades = [...new Set(rows.map(r=>r.Grade))].sort();
+  for (const v of brands)   $brand.add(new Option(v,v));
+  for (const v of series)   $series.add(new Option(v,v));
+  for (const v of states)   $state.add(new Option(v,v));
+  for (const v of colors)   $color.add(new Option(v,v));
+  for (const v of warranties)$warranty.add(new Option(v,v));
+  for (const v of grades)   $grade.add(new Option(v,v));
+}
+fillOptions();
+
+function imgURLFor(row){
+  // Try /swatches/<Series>/<Color>.png (or .jpg)
+  const base = 'swatches/' + row.Series + '/' + row.Color;
+  // We attempt PNG first, then JPG via onerror fallback in the DOM.
+  return base + '.png';
+}
+
+function render(){
+  const q = ($q.value||'').toLowerCase();
+  const b = $brand.value, s=$series.value, st=$state.value, c=$color.value, w=$warranty.value, g=$grade.value;
+
+  const host = document.getElementById('rows');
+  host.innerHTML = '';
+
+  rows.filter(r=>{
+    const hit = !q || (r.Brand+' '+r.Series+' '+r.Color+' '+r.State).toLowerCase().includes(q);
+    const bOK = !b || r.Brand===b;
+    const sOK = !s || r.Series===s;
+    const stOK = !st || r.State===st;
+    const cOK = !c || r.Color===c;
+    const wOK = !w || r.Warranty===w;
+    const gOK = !g || r.Grade===g;
+    return hit && bOK && sOK && stOK && cOK && wOK && gOK;
+  }).forEach(r=>{
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const imgBox = document.createElement('div'); imgBox.className='imgbox';
+    const img = document.createElement('img');
+    img.alt = r.Color + ' — ' + r.Series;
+    img.src = imgURLFor(r);
+    // JPG fallback
+    img.onerror = function(){ 
+      if (!this.dataset.triedJpg){ this.dataset.triedJpg = 1; this.src = this.src.replace('.png','.jpg'); }
+      else {
+        // final fallback: placeholder with label
+        this.replaceWith(Object.assign(document.createElement('div'), {className:'placeholder', textContent:r.Color}));
+      }
+    };
+    imgBox.appendChild(img);
+
+    const brand = document.createElement('div'); brand.textContent = r.Brand;
+    const series = document.createElement('div'); series.textContent = r.Series;
+    const warranty = document.createElement('div'); warranty.textContent = r.Warranty;
+    const color = document.createElement('div'); color.textContent = r.Color;
+    const state = document.createElement('div'); state.textContent = r.State;
+
+    const grid = document.createElement('div');
+    grid.className = 'grid head'; // reuse grid style for layout only
+    grid.style.borderBottom='none';
+    grid.appendChild(imgBox);
+    grid.appendChild(brand);
+    grid.appendChild(series);
+    grid.appendChild(warranty);
+    grid.appendChild(color);
+    grid.appendChild(state);
+
+    row.appendChild(grid);
+    host.appendChild(row);
+  });
+}
+
+$q.addEventListener('input', render);
+[$brand,$series,$state,$color,$warranty,$grade].forEach(el=>el.addEventListener('change', render));
+render();
+</script>
+</body>
+</html>
 
